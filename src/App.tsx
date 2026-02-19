@@ -9,10 +9,13 @@ import { Player } from './components/Player';
 import { AlbumCard } from './components/AlbumCard';
 import { MobileNav } from './components/MobileNav';
 import { SettingsView } from './components/SettingsView';
+import { AlbumsView } from './components/AlbumsView';
+import { ArtistsView } from './components/ArtistsView';
+import { PlaylistsView } from './components/PlaylistsView';
 import { musicService } from './services/musicService';
-import { Song } from './types';
+import { Song, Playlist } from './types';
 import { SERVER_URL } from './constants';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Plus, Check } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
@@ -24,6 +27,28 @@ export default function App() {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, song: Song } | null>(null);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('playlists');
+    if (saved) {
+      setPlaylists(JSON.parse(saved));
+    }
+  }, []);
+
+  const addToPlaylist = (playlistId: string, songFilename: string) => {
+    const updated = playlists.map(p => {
+      if (p.id === playlistId) {
+        if (p.songs.includes(songFilename)) return p;
+        return { ...p, songs: [...p.songs, songFilename] };
+      }
+      return p;
+    });
+    setPlaylists(updated);
+    localStorage.setItem('playlists', JSON.stringify(updated));
+    setContextMenu(null);
+  };
 
   const fetchSongs = useCallback(async (retries = 3) => {
     try {
@@ -38,54 +63,27 @@ export default function App() {
         const lyrics = registries.lyrics[song.filename];
         const videoUrl = registries.videos[song.filename];
         
-        // 1. Determine Album from albums.json if not explicitly overridden in customMetadata
-        let albumFromRegistry = '';
-        if (registries.albums) {
-          for (const [albumName, filenames] of Object.entries(registries.albums)) {
-            if (filenames.includes(song.filename)) {
-              albumFromRegistry = albumName;
-              break;
-            }
-          }
-        }
-
-        // Apply metadata overrides
+        // Apply metadata overrides first so they can be used for key matching
         const finalTitle = customMeta.title || song.title;
         const finalArtist = customMeta.artist || song.artist;
-        const finalAlbum = customMeta.album || albumFromRegistry || song.album;
+        const finalAlbum = customMeta.album || song.album;
 
         // Animated cover check
         let isAnimated = false;
         let animatedCoverUrl = '';
         
-        if (animatedCoversEnabled && registries.animatedCovers) {
+        if (animatedCoversEnabled) {
           // Check track pattern: track:Filename
           const trackKey = `track:${song.filename}`;
           if (registries.animatedCovers[trackKey]) {
             isAnimated = true;
             animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[trackKey]}`;
           } else {
-            // Check album pattern: album:Artist|Album
-            // We try exact match first, then a normalized match to handle double spaces or trailing spaces
-            const exactAlbumKey = `album:${finalArtist}|${finalAlbum}`;
-            
-            if (registries.animatedCovers[exactAlbumKey]) {
+            // Check album pattern: album:Artist|Album (using final metadata)
+            const albumKey = `album:${finalArtist.trim()}|${finalAlbum.trim()}`;
+            if (registries.animatedCovers[albumKey]) {
               isAnimated = true;
-              animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[exactAlbumKey]}`;
-            } else {
-              // Normalized match for resilience (e.g. "Tyler,  The Creator" vs "Tyler, The Creator")
-              const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
-              const normTarget = normalize(`${finalArtist}|${finalAlbum}`);
-              
-              const matchingKey = Object.keys(registries.animatedCovers).find(key => {
-                if (!key.startsWith('album:')) return false;
-                return normalize(key.replace('album:', '')) === normTarget;
-              });
-
-              if (matchingKey) {
-                isAnimated = true;
-                animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[matchingKey]}`;
-              }
+              animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[albumKey]}`;
             }
           }
         }
@@ -93,7 +91,7 @@ export default function App() {
         // Custom cover check
         let customCoverUrl = '';
         const customCoverKey = `track:${song.filename}`;
-        if (registries.customCovers && registries.customCovers[customCoverKey]) {
+        if (registries.customCovers[customCoverKey]) {
           customCoverUrl = `${SERVER_URL}/${registries.customCovers[customCoverKey]}`;
         }
 
@@ -153,9 +151,48 @@ export default function App() {
     setCurrentSong(songs[prevIndex]);
   };
 
+  const handleContextMenu = (e: React.MouseEvent, song: Song) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, song });
+  };
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
   return (
     <div className="min-h-screen transition-colors duration-500 selection:bg-red-500/30">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      
+      {/* Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed z-[100] bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-2 w-56 animate-in fade-in zoom-in-95 duration-200"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          <div className="px-3 py-2 text-xs font-bold text-zinc-500 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-800 mb-1">
+            Add to Playlist
+          </div>
+          <div className="max-h-48 overflow-y-auto custom-scrollbar">
+            {playlists.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-zinc-500 italic">No playlists created</div>
+            ) : (
+              playlists.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => addToPlaylist(p.id, contextMenu.song.filename)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 rounded-lg transition-colors flex items-center justify-between group"
+                >
+                  <span className="truncate">{p.name}</span>
+                  {p.songs.includes(contextMenu.song.filename) && <Check size={14} className="text-red-500" />}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Main Content */}
       <main className="md:pl-72 pb-40 min-h-screen">
@@ -192,6 +229,12 @@ export default function App() {
               songs={songs}
               onRefresh={fetchSongs}
             />
+          ) : activeTab === 'albums' ? (
+            <AlbumsView songs={songs} onPlay={handlePlay} autoLoadCovers={autoLoadCovers} />
+          ) : activeTab === 'artists' ? (
+            <ArtistsView songs={songs} onPlay={handlePlay} autoLoadCovers={autoLoadCovers} />
+          ) : activeTab === 'playlists' ? (
+            <PlaylistsView songs={songs} onPlay={handlePlay} autoLoadCovers={autoLoadCovers} />
           ) : (
             <div className="space-y-12 animate-in fade-in duration-500">
               {loading ? (
@@ -218,12 +261,13 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                       {songs.slice(0, 4).map((song) => (
-                        <AlbumCard 
-                          key={song.filename} 
-                          song={song} 
-                          onPlay={handlePlay} 
-                          autoLoadCover={autoLoadCovers}
-                        />
+                        <div key={song.filename} onContextMenu={(e) => handleContextMenu(e, song)}>
+                          <AlbumCard 
+                            song={song} 
+                            onPlay={handlePlay} 
+                            autoLoadCover={autoLoadCovers}
+                          />
+                        </div>
                       ))}
                     </div>
                   </section>
@@ -236,12 +280,13 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
                       {songs.map((song) => (
-                        <AlbumCard 
-                          key={song.filename} 
-                          song={song} 
-                          onPlay={handlePlay} 
-                          autoLoadCover={autoLoadCovers}
-                        />
+                        <div key={song.filename} onContextMenu={(e) => handleContextMenu(e, song)}>
+                          <AlbumCard 
+                            song={song} 
+                            onPlay={handlePlay} 
+                            autoLoadCover={autoLoadCovers}
+                          />
+                        </div>
                       ))}
                     </div>
                   </section>

@@ -12,7 +12,8 @@ import {
   Tv,
   Pin,
   Store,
-  Settings
+  Settings,
+  ListMusic
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -59,7 +60,8 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             <NavItem icon={<Clock size={18} />} label="Recently Added" active={activeTab === 'recent'} onClick={() => setActiveTab('recent')} />
             <NavItem icon={<Mic2 size={18} />} label="Artists" active={activeTab === 'artists'} onClick={() => setActiveTab('artists')} />
             <NavItem icon={<Library size={18} />} label="Albums" active={activeTab === 'albums'} onClick={() => setActiveTab('albums')} />
-            <NavItem icon={<PlaySquare size={18} />} label="Songs" active={activeTab === 'songs'} onClick={() => setActiveTab('songs')} />
+            <NavItem icon={<PlaySquare size={18} />} label="Songs" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
+            <NavItem icon={<ListMusic size={18} />} label="Playlists" active={activeTab === 'playlists'} onClick={() => setActiveTab('playlists')} />
             <NavItem icon={<Tv size={18} />} label="Music Videos" active={activeTab === 'videos'} onClick={() => setActiveTab('videos')} />
             <NavItem icon={<User size={18} />} label="Made For You" active={activeTab === 'foryou'} onClick={() => setActiveTab('foryou')} />
           </nav>

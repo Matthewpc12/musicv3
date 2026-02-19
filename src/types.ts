@@ -17,6 +17,14 @@ export interface DownloadStatus {
   task?: string;
 }
 
+export interface Playlist {
+  id: string;
+  name: string;
+  songs: string[]; // filenames
+  cover?: string;
+  createdAt: number;
+}
+
 export interface Registries {
   albums: Record<string, string[]>;
   animatedCovers: Record<string, string>;
