@@ -38,27 +38,54 @@ export default function App() {
         const lyrics = registries.lyrics[song.filename];
         const videoUrl = registries.videos[song.filename];
         
-        // Apply metadata overrides first so they can be used for key matching
+        // 1. Determine Album from albums.json if not explicitly overridden in customMetadata
+        let albumFromRegistry = '';
+        if (registries.albums) {
+          for (const [albumName, filenames] of Object.entries(registries.albums)) {
+            if (filenames.includes(song.filename)) {
+              albumFromRegistry = albumName;
+              break;
+            }
+          }
+        }
+
+        // Apply metadata overrides
         const finalTitle = customMeta.title || song.title;
         const finalArtist = customMeta.artist || song.artist;
-        const finalAlbum = customMeta.album || song.album;
+        const finalAlbum = customMeta.album || albumFromRegistry || song.album;
 
         // Animated cover check
         let isAnimated = false;
         let animatedCoverUrl = '';
         
-        if (animatedCoversEnabled) {
+        if (animatedCoversEnabled && registries.animatedCovers) {
           // Check track pattern: track:Filename
           const trackKey = `track:${song.filename}`;
           if (registries.animatedCovers[trackKey]) {
             isAnimated = true;
             animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[trackKey]}`;
           } else {
-            // Check album pattern: album:Artist|Album (using final metadata)
-            const albumKey = `album:${finalArtist.trim()}|${finalAlbum.trim()}`;
-            if (registries.animatedCovers[albumKey]) {
+            // Check album pattern: album:Artist|Album
+            // We try exact match first, then a normalized match to handle double spaces or trailing spaces
+            const exactAlbumKey = `album:${finalArtist}|${finalAlbum}`;
+            
+            if (registries.animatedCovers[exactAlbumKey]) {
               isAnimated = true;
-              animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[albumKey]}`;
+              animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[exactAlbumKey]}`;
+            } else {
+              // Normalized match for resilience (e.g. "Tyler,  The Creator" vs "Tyler, The Creator")
+              const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+              const normTarget = normalize(`${finalArtist}|${finalAlbum}`);
+              
+              const matchingKey = Object.keys(registries.animatedCovers).find(key => {
+                if (!key.startsWith('album:')) return false;
+                return normalize(key.replace('album:', '')) === normTarget;
+              });
+
+              if (matchingKey) {
+                isAnimated = true;
+                animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[matchingKey]}`;
+              }
             }
           }
         }
@@ -66,7 +93,7 @@ export default function App() {
         // Custom cover check
         let customCoverUrl = '';
         const customCoverKey = `track:${song.filename}`;
-        if (registries.customCovers[customCoverKey]) {
+        if (registries.customCovers && registries.customCovers[customCoverKey]) {
           customCoverUrl = `${SERVER_URL}/${registries.customCovers[customCoverKey]}`;
         }
 

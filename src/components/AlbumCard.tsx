@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play } from 'lucide-react';
 import { Song } from '../types';
-import { useState, useEffect } from 'react';
 import { musicService } from '../services/musicService';
+import { cacheService } from '../services/cacheService';
 
 interface AlbumCardProps {
   song: Song;
@@ -12,33 +12,40 @@ interface AlbumCardProps {
 
 export const AlbumCard: React.FC<AlbumCardProps> = ({ song, onPlay, autoLoadCover = false }) => {
   const [cover, setCover] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    const cached = localStorage.getItem(`cover_${song.filename}`);
-    if (cached) {
-      setCover(cached);
-    } else if (autoLoadCover) {
-      // Stagger requests to avoid burst failures/rate limits on Cloudflare
-      const delay = Math.random() * 3000;
-      const timer = setTimeout(loadCover, delay);
-      return () => clearTimeout(timer);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (autoLoadCover && !song.customCoverUrl && !song.animatedCoverUrl) {
+      loadCover();
     }
-  }, [song.filename, autoLoadCover]);
+  }, [song.filename, autoLoadCover, song.customCoverUrl, song.animatedCoverUrl]);
 
   const loadCover = async () => {
     try {
+      // Try cache first
+      const cached = await cacheService.getCover(song.filename);
+      if (cached && mountedRef.current) {
+        setCover(cached);
+        return;
+      }
+
+      // Fetch if not cached
       const data = await musicService.getSongMetadata(song.filename);
-      if (data.cover) {
+      if (data.cover && mountedRef.current) {
         const coverData = `data:image/jpeg;base64,${data.cover}`;
         setCover(coverData);
-        try {
-          localStorage.setItem(`cover_${song.filename}`, coverData);
-        } catch (e) {
-          console.warn("Storage quota exceeded, could not cache cover locally");
-        }
+        // Cache it asynchronously
+        cacheService.saveCover(song.filename, coverData).catch(console.warn);
       }
     } catch (e) {
-      console.error("Failed to load cover", e);
+      console.warn('Failed to load cover', e);
     }
   };
 

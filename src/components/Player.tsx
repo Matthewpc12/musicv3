@@ -19,6 +19,8 @@ import { LyricsView } from './LyricsView';
 import { VideoPlayer } from './VideoPlayer';
 import { FullscreenPlayer } from './FullscreenPlayer';
 
+import { cacheService } from '../services/cacheService';
+
 interface PlayerProps {
   currentSong: Song | null;
   isPlaying: boolean;
@@ -75,19 +77,26 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
       }
 
       // Load cover
-      const cached = localStorage.getItem(`cover_${currentSong.filename}`);
-      if (cached) {
-        setCover(cached);
-      } else {
+      const loadCover = async () => {
         setCover(null);
-        musicService.getSongMetadata(currentSong.filename).then(data => {
-          if (data.cover) {
-            const coverData = `data:image/jpeg;base64,${data.cover}`;
-            setCover(coverData);
-            localStorage.setItem(`cover_${currentSong.filename}`, coverData);
+        try {
+          const cached = await cacheService.getCover(currentSong.filename);
+          if (cached) {
+            setCover(cached);
+          } else {
+            const data = await musicService.getSongMetadata(currentSong.filename);
+            if (data.cover) {
+              const coverData = `data:image/jpeg;base64,${data.cover}`;
+              setCover(coverData);
+              cacheService.saveCover(currentSong.filename, coverData).catch(console.warn);
+            }
           }
-        });
-      }
+        } catch (e) {
+          console.warn('Failed to load cover', e);
+        }
+      };
+      
+      loadCover();
     }
   }, [currentSong, isPlaying]);
 
