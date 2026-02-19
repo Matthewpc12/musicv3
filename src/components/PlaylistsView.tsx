@@ -7,9 +7,10 @@ interface PlaylistsViewProps {
   songs: Song[];
   onPlay: (song: Song) => void;
   autoLoadCovers: boolean;
+  isMobile?: boolean;
 }
 
-export function PlaylistsView({ songs, onPlay, autoLoadCovers }: PlaylistsViewProps) {
+export function PlaylistsView({ songs, onPlay, autoLoadCovers, isMobile }: PlaylistsViewProps) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -57,6 +58,7 @@ export function PlaylistsView({ songs, onPlay, autoLoadCovers }: PlaylistsViewPr
   };
 
   const getPlaylistCover = (playlist: Playlist) => {
+    if (isMobile) return null;
     if (imageError[playlist.id]) return null;
     if (playlist.songs.length > 0) {
       const firstSong = songs.find(s => s.filename === playlist.songs[0]);
@@ -125,20 +127,22 @@ export function PlaylistsView({ songs, onPlay, autoLoadCovers }: PlaylistsViewPr
               className="group flex items-center gap-4 p-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-white/5 cursor-pointer transition-colors"
             >
               <span className="w-8 text-center text-sm font-mono text-zinc-400 group-hover:text-red-500">{index + 1}</span>
-              <div className="w-10 h-10 rounded-lg bg-zinc-200 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
-                {!imageError[`song-${index}`] && ((song.isAnimated && song.animatedCoverUrl) || song.customCoverUrl || song.cover) ? (
-                  <img 
-                    src={song.animatedCoverUrl || song.customCoverUrl || song.cover} 
-                    className="w-full h-full object-cover" 
-                    alt="" 
-                    onError={() => handleImageError(`song-${index}`)}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-400 font-bold text-xs">
-                    {song.title[0]}
-                  </div>
-                )}
-              </div>
+              {!isMobile && (
+                <div className="w-10 h-10 rounded-lg bg-zinc-200 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
+                  {!imageError[`song-${index}`] && ((song.isAnimated && song.animatedCoverUrl) || song.customCoverUrl || song.cover) ? (
+                    <img 
+                      src={song.animatedCoverUrl || song.customCoverUrl || song.cover} 
+                      className="w-full h-full object-cover" 
+                      alt="" 
+                      onError={() => handleImageError(`song-${index}`)}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-400 font-bold text-xs">
+                      {song.title[0]}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <h4 className="font-bold truncate">{song.title}</h4>
                 <p className="text-xs text-zinc-500 truncate">{song.artist}</p>

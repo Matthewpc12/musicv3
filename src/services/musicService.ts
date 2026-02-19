@@ -3,12 +3,12 @@ import { Song, DownloadStatus, Registries } from '../types';
 import { get, set } from 'idb-keyval';
 
 const REGISTRY_FILES = {
-  METADATA: 'music/custom_metadata.json',
-  ALBUMS: 'music/albums.json',
-  ANIMATED_COVERS: 'music/animated_covers.json',
-  CUSTOM_COVERS: 'music/custom_covers.json',
-  LYRICS: 'music/lyrics_registry.json',
-  VIDEOS: 'music/video_registry.json'
+  METADATA: 'custom_metadata.json',
+  ALBUMS: 'albums.json',
+  ANIMATED_COVERS: 'animated_covers.json',
+  CUSTOM_COVERS: 'custom_covers.json',
+  LYRICS: 'lyrics_registry.json',
+  VIDEOS: 'video_registry.json'
 };
 
 export const musicService = {

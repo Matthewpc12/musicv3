@@ -31,6 +31,15 @@ export default function App() {
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, song: Song } | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
+  
+  // Detect mobile
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('playlists');
@@ -272,15 +281,29 @@ export default function App() {
             <AlbumsView 
               songs={songs} 
               onPlay={handlePlay} 
-              autoLoadCovers={autoLoadCovers}
+              autoLoadCovers={autoLoadCovers && !isMobile}
               isDevMode={isDevMode}
               onEdit={(song) => setEditingSong(song)}
               onAddToPlaylist={(e, song) => handleContextMenu(e, song)}
+              isMobile={isMobile}
             />
           ) : activeTab === 'artists' ? (
-            <ArtistsView songs={songs} onPlay={handlePlay} autoLoadCovers={autoLoadCovers} />
+            <ArtistsView 
+              songs={songs} 
+              onPlay={handlePlay} 
+              autoLoadCovers={autoLoadCovers && !isMobile}
+              isDevMode={isDevMode}
+              onEdit={(song) => setEditingSong(song)}
+              onAddToPlaylist={(e, song) => handleContextMenu(e, song)}
+              isMobile={isMobile}
+            />
           ) : activeTab === 'playlists' ? (
-            <PlaylistsView songs={songs} onPlay={handlePlay} autoLoadCovers={autoLoadCovers} />
+            <PlaylistsView 
+              songs={songs} 
+              onPlay={handlePlay} 
+              autoLoadCovers={autoLoadCovers && !isMobile}
+              isMobile={isMobile}
+            />
           ) : (
             <div className="space-y-12 animate-in fade-in duration-500">
               {loading ? (
@@ -300,7 +323,7 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  {/* Top Picks Section (Just first 4 for visual) */}
+                  {/* Top Picks Section */}
                   <section>
                     <div className="flex items-center justify-between mb-6">
                       <h2 className="text-xl font-bold tracking-tight">Top Picks for You</h2>
@@ -311,12 +334,11 @@ export default function App() {
                           <AlbumCard 
                             song={song} 
                             onPlay={handlePlay} 
-                            autoLoadCover={autoLoadCovers}
+                            autoLoadCover={autoLoadCovers && !isMobile}
                             isDevMode={isDevMode}
-                            onEdit={() => {
-                              setEditingSong(song);
-                            }}
+                            onEdit={() => setEditingSong(song)}
                             onAddToPlaylist={(e) => handleContextMenu(e, song)}
+                            isMobile={isMobile}
                           />
                         </div>
                       ))}
@@ -335,12 +357,11 @@ export default function App() {
                           <AlbumCard 
                             song={song} 
                             onPlay={handlePlay} 
-                            autoLoadCover={autoLoadCovers}
+                            autoLoadCover={autoLoadCovers && !isMobile}
                             isDevMode={isDevMode}
-                            onEdit={() => {
-                              setEditingSong(song);
-                            }}
+                            onEdit={() => setEditingSong(song)}
                             onAddToPlaylist={(e) => handleContextMenu(e, song)}
+                            isMobile={isMobile}
                           />
                         </div>
                       ))}

@@ -10,6 +10,7 @@ interface AlbumsViewProps {
   isDevMode?: boolean;
   onEdit?: (song: Song) => void;
   onAddToPlaylist?: (e: React.MouseEvent, song: Song) => void;
+  isMobile?: boolean;
 }
 
 export function AlbumsView({ 
@@ -18,7 +19,8 @@ export function AlbumsView({
   autoLoadCovers,
   isDevMode,
   onEdit,
-  onAddToPlaylist
+  onAddToPlaylist,
+  isMobile
 }: AlbumsViewProps) {
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
 
@@ -110,6 +112,7 @@ export function AlbumsView({
               isDevMode={isDevMode}
               onEdit={onEdit}
               onAddToPlaylist={onAddToPlaylist}
+              isMobile={isMobile}
             />
           </div>
         );

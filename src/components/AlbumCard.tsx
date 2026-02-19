@@ -11,6 +11,7 @@ interface AlbumCardProps {
   isDevMode?: boolean;
   onEdit?: (song: Song) => void;
   onAddToPlaylist?: (e: React.MouseEvent, song: Song) => void;
+  isMobile?: boolean;
 }
 
 export const AlbumCard: React.FC<AlbumCardProps> = ({ 
@@ -19,7 +20,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   autoLoadCover = false,
   isDevMode = false,
   onEdit,
-  onAddToPlaylist
+  onAddToPlaylist,
+  isMobile = false
 }) => {
   const [cover, setCover] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
@@ -34,10 +36,10 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   }, [song.filename, song.animatedCoverUrl, song.customCoverUrl]);
 
   useEffect(() => {
-    if (autoLoadCover && !song.customCoverUrl && !song.animatedCoverUrl) {
+    if (!isMobile && autoLoadCover && !song.customCoverUrl && !song.animatedCoverUrl) {
       loadCover();
     }
-  }, [song.filename, autoLoadCover, song.customCoverUrl, song.animatedCoverUrl]);
+  }, [song.filename, autoLoadCover, song.customCoverUrl, song.animatedCoverUrl, isMobile]);
 
   const loadCover = async () => {
     try {
@@ -62,7 +64,8 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({
   };
 
   // Prioritize animated cover, then custom cover (from server URL), then embedded cover
-  const displayCover = !imageError && (
+  // BUT if isMobile is true, force no image
+  const displayCover = !isMobile && !imageError && (
     (song.isAnimated && song.animatedCoverUrl) 
       ? song.animatedCoverUrl 
       : (song.customCoverUrl ? song.customCoverUrl : cover)
