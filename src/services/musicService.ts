@@ -1,5 +1,6 @@
 import { SERVER_URL } from '../constants';
 import { Song, DownloadStatus, Registries } from '../types';
+import { get, set } from 'idb-keyval';
 
 export const musicService = {
   async getAllMetadata(): Promise<Song[]> {
@@ -58,6 +59,24 @@ export const musicService = {
     return response.json();
   },
 
+  async getRegistry(filename: string): Promise<any> {
+    const CACHE_KEY = `registry_${filename}`;
+    try {
+      // 1. Fetch the JSON file from the server
+      const response = await fetch(`${SERVER_URL}/${filename}?t=${Date.now()}`);
+      if (response.ok) {
+        const registry = await response.json();
+        // 2. Cache it locally
+        await set(CACHE_KEY, registry);
+        return registry;
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch ${filename}, falling back to cache`);
+    }
+    // 3. Return cached version if fetch fails
+    return (await get(CACHE_KEY)) || {};
+  },
+
   async getRegistries(): Promise<Registries> {
     const files = [
       'albums.json',
@@ -69,11 +88,7 @@ export const musicService = {
     ];
     
     const results = await Promise.all(
-      files.map(file => 
-        fetch(`${SERVER_URL}/${file}`)
-          .then(r => r.ok ? r.json() : {})
-          .catch(() => ({}))
-      )
+      files.map(file => this.getRegistry(file))
     );
 
     return {
@@ -86,14 +101,17 @@ export const musicService = {
     };
   },
 
-  async updateRegistry(file: string, data: any): Promise<void> {
-    // Assuming the server has a generic endpoint for updating these files
-    // If not, this is a placeholder for the dev mode functionality
-    const response = await fetch(`${SERVER_URL}/api/update-registry`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file, data })
-    });
-    if (!response.ok) throw new Error(`Failed to update ${file}`);
+  async updateRegistry(filename: string, data: any): Promise<void> {
+    const CACHE_KEY = `registry_${filename}`;
+    
+    // 1. Save to local cache immediately (Optimistic UI)
+    await set(CACHE_KEY, data);
+    
+    // 2. Create a new file from the JSON string
+    const jsonContent = JSON.stringify(data, null, 2);
+    const file = new File([jsonContent], filename, { type: "application/json" });
+    
+    // 3. Upload the file to overwrite the one on the server
+    await this.uploadFile(file);
   }
 };
