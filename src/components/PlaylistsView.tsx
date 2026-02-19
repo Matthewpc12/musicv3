@@ -50,7 +50,14 @@ export function PlaylistsView({ songs, onPlay, autoLoadCovers }: PlaylistsViewPr
     }
   };
 
+  const [imageError, setImageError] = useState<Record<string, boolean>>({});
+
+  const handleImageError = (id: string) => {
+    setImageError(prev => ({ ...prev, [id]: true }));
+  };
+
   const getPlaylistCover = (playlist: Playlist) => {
+    if (imageError[playlist.id]) return null;
     if (playlist.songs.length > 0) {
       const firstSong = songs.find(s => s.filename === playlist.songs[0]);
       if (firstSong) {
@@ -83,6 +90,7 @@ export function PlaylistsView({ songs, onPlay, autoLoadCovers }: PlaylistsViewPr
                  src={getPlaylistCover(selectedPlaylist)!} 
                  alt={selectedPlaylist.name}
                  className="w-full h-full object-cover"
+                 onError={() => handleImageError(selectedPlaylist.id)}
                />
              ) : (
                <Music size={64} className="text-zinc-400" />
@@ -118,11 +126,12 @@ export function PlaylistsView({ songs, onPlay, autoLoadCovers }: PlaylistsViewPr
             >
               <span className="w-8 text-center text-sm font-mono text-zinc-400 group-hover:text-red-500">{index + 1}</span>
               <div className="w-10 h-10 rounded-lg bg-zinc-200 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
-                {(song.isAnimated && song.animatedCoverUrl) || song.customCoverUrl || song.cover ? (
+                {!imageError[`song-${index}`] && ((song.isAnimated && song.animatedCoverUrl) || song.customCoverUrl || song.cover) ? (
                   <img 
                     src={song.animatedCoverUrl || song.customCoverUrl || song.cover} 
                     className="w-full h-full object-cover" 
                     alt="" 
+                    onError={() => handleImageError(`song-${index}`)}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-zinc-400 font-bold text-xs">
@@ -190,6 +199,7 @@ export function PlaylistsView({ songs, onPlay, autoLoadCovers }: PlaylistsViewPr
                   src={getPlaylistCover(playlist)!} 
                   alt={playlist.name}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={() => handleImageError(playlist.id)}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

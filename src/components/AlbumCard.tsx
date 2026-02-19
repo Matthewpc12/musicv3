@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play } from 'lucide-react';
+import { Play, Plus, Edit2, MoreHorizontal } from 'lucide-react';
 import { Song } from '../types';
 import { musicService } from '../services/musicService';
 import { cacheService } from '../services/cacheService';
@@ -8,18 +8,30 @@ interface AlbumCardProps {
   song: Song;
   onPlay: (song: Song) => void;
   autoLoadCover?: boolean;
+  isDevMode?: boolean;
+  onEdit?: (song: Song) => void;
+  onAddToPlaylist?: (e: React.MouseEvent, song: Song) => void;
 }
 
-export const AlbumCard: React.FC<AlbumCardProps> = ({ song, onPlay, autoLoadCover = false }) => {
+export const AlbumCard: React.FC<AlbumCardProps> = ({ 
+  song, 
+  onPlay, 
+  autoLoadCover = false,
+  isDevMode = false,
+  onEdit,
+  onAddToPlaylist
+}) => {
   const [cover, setCover] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
+    setImageError(false);
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [song.filename, song.animatedCoverUrl, song.customCoverUrl]);
 
   useEffect(() => {
     if (autoLoadCover && !song.customCoverUrl && !song.animatedCoverUrl) {
@@ -49,12 +61,15 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({ song, onPlay, autoLoadCove
     }
   };
 
-  const displayCover = (song.isAnimated && song.animatedCoverUrl) 
-    ? song.animatedCoverUrl 
-    : (song.customCoverUrl || cover);
+  // Prioritize animated cover, then custom cover (from server URL), then embedded cover
+  const displayCover = !imageError && (
+    (song.isAnimated && song.animatedCoverUrl) 
+      ? song.animatedCoverUrl 
+      : (song.customCoverUrl ? song.customCoverUrl : cover)
+  );
 
   return (
-    <div className="group flex flex-col gap-3 cursor-pointer" onClick={() => onPlay(song)}>
+    <div className="group flex flex-col gap-3 cursor-pointer relative" onClick={() => onPlay(song)}>
       <div className="relative overflow-hidden rounded-2xl aspect-square bg-zinc-100 dark:bg-zinc-800 shadow-sm transition-all duration-500 group-hover:shadow-xl group-hover:-translate-y-1">
         {displayCover ? (
           <img 
@@ -62,6 +77,7 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({ song, onPlay, autoLoadCove
             alt={song.title} 
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             referrerPolicy="no-referrer"
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800">
@@ -69,7 +85,30 @@ export const AlbumCard: React.FC<AlbumCardProps> = ({ song, onPlay, autoLoadCove
           </div>
         )}
         
-        <div className="absolute inset-0 flex items-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="absolute inset-0 flex flex-col justify-between p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/20">
+          <div className="flex justify-end gap-2">
+             {/* Edit Button (Dev Mode) */}
+             {isDevMode && onEdit && (
+               <button 
+                 onClick={(e) => { e.stopPropagation(); onEdit(song); }}
+                 className="w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-red-500 transition-colors"
+                 title="Edit Metadata"
+               >
+                 <Edit2 size={14} />
+               </button>
+             )}
+             {/* Add to Playlist Button */}
+             {onAddToPlaylist && (
+               <button 
+                 onClick={(e) => { e.stopPropagation(); onAddToPlaylist(e, song); }}
+                 className="w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-red-500 transition-colors"
+                 title="Add to Playlist"
+               >
+                 <Plus size={16} />
+               </button>
+             )}
+          </div>
+          
           <div className="w-full flex items-center justify-between">
             <div className="flex flex-col">
               <span className="text-white text-xs font-bold uppercase tracking-widest drop-shadow-md">Music</span>

@@ -37,7 +37,13 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
   const [showLyrics, setShowLyrics] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const [isVideoMode, setIsVideoMode] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [currentSong?.filename]);
 
   useEffect(() => {
     if (!audioRef.current) {
@@ -47,7 +53,9 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
 
     const audio = audioRef.current;
 
-    const handleTimeUpdate = () => setProgress(audio.currentTime);
+    const handleTimeUpdate = () => {
+      if (!isVideoMode) setProgress(audio.currentTime);
+    };
     const handleLoadedMetadata = () => setDuration(audio.duration);
     const handleEnded = () => onNext();
 
@@ -60,7 +68,7 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [onNext]);
+  }, [onNext, isVideoMode]);
 
   useEffect(() => {
     if (currentSong && audioRef.current) {
@@ -70,8 +78,21 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
         audioRef.current.load();
       }
       
-      if (isPlaying) {
-        audioRef.current.play().catch(console.error);
+      // If video mode is active, we mute the audio player so video can play sound
+      // Or we pause it. Pausing is better but syncing is harder.
+      // Let's try muting for perfect sync if we run both? 
+      // No, running both is waste of bandwidth.
+      // If video mode, pause audio.
+      
+      if (isPlaying && !isVideoMode) {
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            if (error.name !== 'AbortError') {
+              console.error('Playback failed:', error);
+            }
+          });
+        }
       } else {
         audioRef.current.pause();
       }
@@ -98,7 +119,7 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
       
       loadCover();
     }
-  }, [currentSong, isPlaying]);
+  }, [currentSong, isPlaying, isVideoMode]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -106,49 +127,52 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
     }
   }, [volume]);
 
+  // Reset video mode when song changes
+  useEffect(() => {
+    setIsVideoMode(false);
+  }, [currentSong?.filename]);
+
   const formatTime = (time: number) => {
     const mins = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSeek = (time: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setProgress(time);
+    }
+  };
+
+  const handleSeekEvent = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current || duration === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percent = x / rect.width;
-    audioRef.current.currentTime = percent * duration;
+    handleSeek(percent * duration);
   };
 
   if (!currentSong) return null;
 
   return (
     <>
-      {showLyrics && currentSong.lyrics && (
-        <LyricsView 
-          lrc={currentSong.lyrics} 
-          currentTime={progress} 
-          onClose={() => setShowLyrics(false)} 
-        />
-      )}
-
-      {showVideo && currentSong.videoUrl && (
-        <VideoPlayer 
-          url={currentSong.videoUrl} 
-          onClose={() => setShowVideo(false)} 
-        />
-      )}
-
       {showFullscreen && (
         <FullscreenPlayer 
           song={currentSong}
           currentTime={progress}
+          duration={duration}
           isPlaying={isPlaying}
           onPlayPause={onPlayPause}
           onNext={onNext}
           onPrev={onPrev}
+          onSeek={handleSeek}
           onClose={() => setShowFullscreen(false)}
           cover={cover}
+          volume={volume}
+          onVolumeChange={setVolume}
+          isVideoMode={isVideoMode}
+          setIsVideoMode={setIsVideoMode}
         />
       )}
 
@@ -177,19 +201,21 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
             {/* Now Playing Info */}
             <div className="flex items-center gap-3 flex-1 justify-center px-8 cursor-pointer group" onClick={() => setShowFullscreen(true)}>
               <div className="w-10 h-10 rounded-lg overflow-hidden shadow-md flex-shrink-0 bg-zinc-200 dark:bg-zinc-800 relative">
-                {currentSong.isAnimated && currentSong.animatedCoverUrl ? (
+                {!imageError && currentSong.isAnimated && currentSong.animatedCoverUrl ? (
                   <img 
                     src={currentSong.animatedCoverUrl} 
                     alt={currentSong.title} 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
+                    onError={() => setImageError(true)}
                   />
-                ) : cover ? (
+                ) : !imageError && cover ? (
                   <img 
                     src={cover} 
                     alt={currentSong.title} 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
+                    onError={() => setImageError(true)}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-zinc-400 font-bold">
@@ -247,7 +273,7 @@ export function Player({ currentSong, isPlaying, onPlayPause, onNext, onPrev }: 
             <span className="text-[10px] text-zinc-400 font-mono w-8">{formatTime(progress)}</span>
             <div 
               className="h-1 flex-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden cursor-pointer relative"
-              onClick={handleSeek}
+              onClick={handleSeekEvent}
             >
               <div 
                 className="h-full bg-red-500 transition-all duration-100" 

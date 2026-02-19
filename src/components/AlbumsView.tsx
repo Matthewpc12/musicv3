@@ -7,9 +7,19 @@ interface AlbumsViewProps {
   songs: Song[];
   onPlay: (song: Song) => void;
   autoLoadCovers: boolean;
+  isDevMode?: boolean;
+  onEdit?: (song: Song) => void;
+  onAddToPlaylist?: (e: React.MouseEvent, song: Song) => void;
 }
 
-export function AlbumsView({ songs, onPlay, autoLoadCovers }: AlbumsViewProps) {
+export function AlbumsView({ 
+  songs, 
+  onPlay, 
+  autoLoadCovers,
+  isDevMode,
+  onEdit,
+  onAddToPlaylist
+}: AlbumsViewProps) {
   const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
 
   // Group songs by album
@@ -97,6 +107,9 @@ export function AlbumsView({ songs, onPlay, autoLoadCovers }: AlbumsViewProps) {
               song={{...song, title: name, artist: song.artist}} // Hack to reuse AlbumCard for album display
               onPlay={() => setSelectedAlbum(name)}
               autoLoadCover={autoLoadCovers}
+              isDevMode={isDevMode}
+              onEdit={onEdit}
+              onAddToPlaylist={onAddToPlaylist}
             />
           </div>
         );

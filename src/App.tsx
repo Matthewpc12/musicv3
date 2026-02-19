@@ -12,10 +12,11 @@ import { SettingsView } from './components/SettingsView';
 import { AlbumsView } from './components/AlbumsView';
 import { ArtistsView } from './components/ArtistsView';
 import { PlaylistsView } from './components/PlaylistsView';
+import { MetadataEditor } from './components/MetadataEditor';
 import { musicService } from './services/musicService';
 import { Song, Playlist } from './types';
 import { SERVER_URL } from './constants';
-import { ChevronLeft, ChevronRight, Loader2, Plus, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Plus, Check, Edit2 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
@@ -29,6 +30,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, song: Song } | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [editingSong, setEditingSong] = useState<Song | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('playlists');
@@ -59,40 +61,52 @@ export default function App() {
       ]);
 
       const processedSongs = rawSongs.map(song => {
-        const customMeta = registries.customMetadata[song.filename] || {};
-        const lyrics = registries.lyrics[song.filename];
-        const videoUrl = registries.videos[song.filename];
+        // Helper to find value by key or track:key
+        const getValue = (registry: Record<string, any> | undefined, key: string) => {
+          if (!registry) return undefined;
+          return registry[key] || registry[`track:${key}`];
+        };
+
+        const customMeta = getValue(registries.customMetadata, song.filename) || {};
+        const lyrics = getValue(registries.lyrics, song.filename);
+        const videoUrl = getValue(registries.videos, song.filename);
         
         // Apply metadata overrides first so they can be used for key matching
         const finalTitle = customMeta.title || song.title;
         const finalArtist = customMeta.artist || song.artist;
         const finalAlbum = customMeta.album || song.album;
 
+        // Helper to construct URL (handle absolute vs relative)
+        const getUrl = (path: string | undefined) => {
+          if (!path) return '';
+          if (path.startsWith('http://') || path.startsWith('https://')) return path;
+          return `${SERVER_URL}/${path}`;
+        };
+
         // Animated cover check
         let isAnimated = false;
         let animatedCoverUrl = '';
         
         if (animatedCoversEnabled) {
-          // Check track pattern: track:Filename
-          const trackKey = `track:${song.filename}`;
-          if (registries.animatedCovers[trackKey]) {
+          const animatedPath = getValue(registries.animatedCovers, song.filename);
+          if (animatedPath) {
             isAnimated = true;
-            animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[trackKey]}`;
+            animatedCoverUrl = getUrl(animatedPath);
           } else {
             // Check album pattern: album:Artist|Album (using final metadata)
             const albumKey = `album:${finalArtist.trim()}|${finalAlbum.trim()}`;
             if (registries.animatedCovers[albumKey]) {
               isAnimated = true;
-              animatedCoverUrl = `${SERVER_URL}/${registries.animatedCovers[albumKey]}`;
+              animatedCoverUrl = getUrl(registries.animatedCovers[albumKey]);
             }
           }
         }
 
         // Custom cover check
         let customCoverUrl = '';
-        const customCoverKey = `track:${song.filename}`;
-        if (registries.customCovers[customCoverKey]) {
-          customCoverUrl = `${SERVER_URL}/${registries.customCovers[customCoverKey]}`;
+        const customPath = getValue(registries.customCovers, song.filename);
+        if (customPath) {
+          customCoverUrl = getUrl(customPath);
         }
 
         return {
@@ -156,6 +170,13 @@ export default function App() {
     setContextMenu({ x: e.clientX, y: e.clientY, song });
   };
 
+  const handleEditMetadata = () => {
+    if (contextMenu) {
+      setEditingSong(contextMenu.song);
+      setContextMenu(null);
+    }
+  };
+
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
     window.addEventListener('click', handleClick);
@@ -166,12 +187,30 @@ export default function App() {
     <div className="min-h-screen transition-colors duration-500 selection:bg-red-500/30">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       
+      <MetadataEditor 
+        song={editingSong}
+        isOpen={!!editingSong}
+        onClose={() => setEditingSong(null)}
+        onSave={() => {
+          fetchSongs();
+          setEditingSong(null);
+        }}
+      />
+
       {/* Context Menu */}
       {contextMenu && (
         <div 
           className="fixed z-[100] bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-2 w-56 animate-in fade-in zoom-in-95 duration-200"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
+          <button
+            onClick={handleEditMetadata}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 mb-2 font-medium"
+          >
+            <Edit2 size={14} />
+            Edit Metadata
+          </button>
+
           <div className="px-3 py-2 text-xs font-bold text-zinc-500 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-800 mb-1">
             Add to Playlist
           </div>
@@ -197,8 +236,8 @@ export default function App() {
       {/* Main Content */}
       <main className="md:pl-72 pb-40 min-h-screen">
         {/* Header / Top Bar */}
-        <div className="sticky top-0 z-40 bg-white/30 dark:bg-black/20 backdrop-blur-xl px-8 py-6 flex items-center justify-between transition-colors duration-500">
-          <div className="flex items-center gap-6">
+        <div className="sticky top-0 z-40 bg-white/30 dark:bg-black/20 backdrop-blur-xl px-4 md:px-8 py-4 md:py-6 flex items-center justify-between transition-colors duration-500">
+          <div className="flex items-center gap-4 md:gap-6">
             <div className="flex items-center gap-2 text-zinc-400">
               <button className="hover:text-inherit transition-colors p-1">
                 <ChevronLeft size={24} />
@@ -207,7 +246,7 @@ export default function App() {
                 <ChevronRight size={24} />
               </button>
             </div>
-            <h1 className="text-4xl font-black tracking-tight capitalize">{activeTab}</h1>
+            <h1 className="text-2xl md:text-4xl font-black tracking-tight capitalize">{activeTab}</h1>
           </div>
           
           <div className="md:hidden text-lg font-bold text-red-500">
@@ -215,7 +254,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="px-8 py-8">
+        <div className="px-4 md:px-8 py-4 md:py-8">
           {activeTab === 'settings' ? (
             <SettingsView 
               isDarkMode={isDarkMode} 
@@ -230,7 +269,14 @@ export default function App() {
               onRefresh={fetchSongs}
             />
           ) : activeTab === 'albums' ? (
-            <AlbumsView songs={songs} onPlay={handlePlay} autoLoadCovers={autoLoadCovers} />
+            <AlbumsView 
+              songs={songs} 
+              onPlay={handlePlay} 
+              autoLoadCovers={autoLoadCovers}
+              isDevMode={isDevMode}
+              onEdit={(song) => setEditingSong(song)}
+              onAddToPlaylist={(e, song) => handleContextMenu(e, song)}
+            />
           ) : activeTab === 'artists' ? (
             <ArtistsView songs={songs} onPlay={handlePlay} autoLoadCovers={autoLoadCovers} />
           ) : activeTab === 'playlists' ? (
@@ -266,6 +312,11 @@ export default function App() {
                             song={song} 
                             onPlay={handlePlay} 
                             autoLoadCover={autoLoadCovers}
+                            isDevMode={isDevMode}
+                            onEdit={() => {
+                              setEditingSong(song);
+                            }}
+                            onAddToPlaylist={(e) => handleContextMenu(e, song)}
                           />
                         </div>
                       ))}
@@ -285,6 +336,11 @@ export default function App() {
                             song={song} 
                             onPlay={handlePlay} 
                             autoLoadCover={autoLoadCovers}
+                            isDevMode={isDevMode}
+                            onEdit={() => {
+                              setEditingSong(song);
+                            }}
+                            onAddToPlaylist={(e) => handleContextMenu(e, song)}
                           />
                         </div>
                       ))}
